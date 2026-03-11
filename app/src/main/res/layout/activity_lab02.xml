@@ -1,0 +1,76 @@
+<?xml version="1.0" encoding="utf-8"?>
+<GridLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:id="@+id/favorites_grid"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:padding="16dp"
+    android:useDefaultMargins="true"
+    android:columnCount="3"
+    tools:context="pl.wsei.pam.lab02.Lab02Activity">
+
+    <Button
+        android:id="@+id/button_4x4"
+        android:layout_rowWeight="1"
+        android:layout_columnWeight="1"
+        android:width="0dp"
+        android:text="@string/_4_x_4"
+        android:textSize="34sp"
+        app:icon="@drawable/baseline_audiotrack_24"
+        app:iconGravity="textTop"
+        app:iconSize="48dp"
+        android:tag="4 4"
+        android:onClick="onButtonClicked"/>
+
+    <Button
+        android:id="@+id/button_4x5"
+        android:layout_rowWeight="1"
+        android:layout_columnWeight="1"
+        android:width="0dp"
+        android:text="@string/_4_x_5"
+        android:textSize="34sp"
+        app:icon="@drawable/baseline_audiotrack_24"
+        app:iconGravity="textTop"
+        app:iconSize="48dp"
+        android:tag="4 5"
+        android:onClick="onButtonClicked"/>
+
+    <Space
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:minWidth="16dp" />
+
+    <Button
+        android:id="@+id/button_5x6"
+        android:layout_rowWeight="1"
+        android:layout_columnWeight="1"
+        android:width="0dp"
+        android:text="@string/_5_x_6"
+        android:textSize="34sp"
+        app:icon="@drawable/baseline_audiotrack_24"
+        app:iconGravity="textTop"
+        app:iconSize="48dp"
+        android:tag="5 6"
+        android:onClick="onButtonClicked"/>
+
+    <Button
+        android:id="@+id/main_6_6_board"
+        android:layout_rowWeight="1"
+        android:layout_columnWeight="1"
+        android:width="0dp"
+        android:pointerIcon="context_menu"
+        android:text="@string/_6_x_6"
+        android:textSize="34sp"
+        app:icon="@drawable/baseline_audiotrack_24"
+        app:iconGravity="textTop"
+        app:iconSize="48dp"
+        android:tag="6 6"
+        android:onClick="onButtonClicked"/>
+
+    <Space
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:minWidth="16dp" />
+
+</GridLayout>
