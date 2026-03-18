@@ -29,7 +29,12 @@ class Lab02Activity : AppCompatActivity() {
             val rows = tokens[0].toInt()
             val columns = tokens[1].toInt()
 
-            Toast.makeText(this, "Wybrano planszę - wiersze: $rows, kolumny: $columns", Toast.LENGTH_SHORT).show()
+            val intent = android.content.Intent(this, pl.wsei.pam.lab03.Lab03Activity::class.java)
+
+            intent.putExtra("size", intArrayOf(rows, columns))
+
+            startActivity(intent)
+
         }
     }
 }
