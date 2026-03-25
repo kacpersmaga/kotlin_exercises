@@ -16,6 +16,9 @@ data class Tile(val button: ImageButton, var tileResource: Int, val deckResource
                 button.setImageResource(tileResource)
             } else {
                 button.setImageResource(deckResource)
+                button.alpha = 1.0f
+                button.scaleX = 1.0f
+                button.scaleY = 1.0f
             }
         }
 
