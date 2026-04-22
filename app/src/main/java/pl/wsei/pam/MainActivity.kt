@@ -11,6 +11,7 @@ import androidx.core.view.WindowInsetsCompat
 import pl.wsei.pam.lab01.Lab01Activity
 import pl.wsei.pam.lab01.R
 import pl.wsei.pam.lab02.Lab02Activity
+import pl.wsei.pam.lab06.Lab06Activity
 import kotlin.jvm.java
 
 class MainActivity : AppCompatActivity() {
@@ -37,5 +38,8 @@ class MainActivity : AppCompatActivity() {
         startActivity(intent)
     }
 
-
+    fun onClickMainBtnRunLab06(v: View) {
+        val intent = Intent(this, Lab06Activity::class.java)
+        startActivity(intent)
+    }
 }
