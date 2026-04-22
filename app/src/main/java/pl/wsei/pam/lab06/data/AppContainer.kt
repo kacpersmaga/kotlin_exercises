@@ -1,6 +1,7 @@
 package pl.wsei.pam.lab06.data
 
 import android.content.Context
+import pl.wsei.pam.lab06.NotificationHandler
 import java.time.LocalDate
 
 interface CurrentDateProvider {
@@ -15,6 +16,7 @@ class DefaultDateProvider : CurrentDateProvider {
 interface AppContainer {
     val todoTaskRepository: TodoTaskRepository
     val currentDateProvider: CurrentDateProvider
+    val notificationHandler: NotificationHandler
 }
 
 class AppDataContainer(private val context: Context) : AppContainer {
@@ -22,4 +24,7 @@ class AppDataContainer(private val context: Context) : AppContainer {
         DatabaseTodoTaskRepository(AppDatabase.getInstance(context).taskDao())
     }
     override val currentDateProvider: CurrentDateProvider = DefaultDateProvider()
+    override val notificationHandler: NotificationHandler by lazy {
+        NotificationHandler(context)
+    }
 }

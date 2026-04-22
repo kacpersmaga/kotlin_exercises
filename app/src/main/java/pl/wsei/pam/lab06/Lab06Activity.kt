@@ -1,8 +1,17 @@
 package pl.wsei.pam.lab06
 
+import android.Manifest
+import android.app.AlarmManager
+import android.app.NotificationChannel
+import android.app.NotificationManager
+import android.app.PendingIntent
+import android.content.Context
+import android.content.Intent
+import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.annotation.RequiresApi
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -38,11 +47,11 @@ import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextField
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -55,6 +64,7 @@ import androidx.compose.ui.draw.scale
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.core.app.NotificationCompat
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
@@ -66,15 +76,26 @@ import androidx.navigation.NavController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
+import com.google.accompanist.permissions.ExperimentalPermissionsApi
+import com.google.accompanist.permissions.isGranted
+import com.google.accompanist.permissions.rememberPermissionState
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import pl.wsei.pam.lab01.R
+import pl.wsei.pam.lab06.data.AppContainer
 import pl.wsei.pam.lab06.data.CurrentDateProvider
 import pl.wsei.pam.lab06.data.LocalDateConverter
 import pl.wsei.pam.lab06.data.TodoTaskRepository
 import java.time.LocalDate
+
+const val notificationID = 121
+const val channelID = "Lab06 channel"
+const val titleExtra = "title"
+const val messageExtra = "message"
 
 @Composable
 fun Lab06Theme(content: @Composable () -> Unit) {
@@ -102,6 +123,63 @@ fun todoTasks(): List<TodoTask> {
     )
 }
 
+class NotificationHandler(private val context: Context) {
+    private val notificationManager =
+        context.getSystemService(NotificationManager::class.java)
+
+    fun showSimpleNotification() {
+        val notification = NotificationCompat.Builder(context, channelID)
+            .setContentTitle("Proste powiadomienie")
+            .setContentText("Tekst powiadomienia")
+            .setSmallIcon(R.drawable.ic_launcher_foreground)
+            .setPriority(NotificationManager.IMPORTANCE_HIGH)
+            .setAutoCancel(true)
+            .build()
+        notificationManager.notify(notificationID, notification)
+    }
+
+    fun scheduleTaskAlarm(tasks: List<TodoTask>) {
+        val nearestTask = tasks
+            .filter { !it.isDone }
+            .minByOrNull { it.deadline }
+
+        cancelAlarm()
+
+        nearestTask?.let { task ->
+            val alarmTime = LocalDateConverter.toMillis(task.deadline.minusDays(1))
+            val intent = Intent(context, NotificationBroadcastReceiver::class.java).apply {
+                putExtra(titleExtra, "Deadline")
+                putExtra(messageExtra, "Zbliża się termin zakończenia zadania: ${task.title}")
+            }
+            val pendingIntent = PendingIntent.getBroadcast(
+                context,
+                notificationID,
+                intent,
+                PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
+            )
+            val alarmManager = context.getSystemService(AlarmManager::class.java)
+            alarmManager.setRepeating(
+                AlarmManager.RTC_WAKEUP,
+                alarmTime,
+                AlarmManager.INTERVAL_HOUR * 4,
+                pendingIntent
+            )
+        }
+    }
+
+    private fun cancelAlarm() {
+        val intent = Intent(context, NotificationBroadcastReceiver::class.java)
+        val pendingIntent = PendingIntent.getBroadcast(
+            context,
+            notificationID,
+            intent,
+            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
+        )
+        val alarmManager = context.getSystemService(AlarmManager::class.java)
+        alarmManager.cancel(pendingIntent)
+    }
+}
+
 class ListViewModel(val repository: TodoTaskRepository) : ViewModel() {
     val listUiState: StateFlow<ListUiState>
         get() {
@@ -120,7 +198,11 @@ class ListViewModel(val repository: TodoTaskRepository) : ViewModel() {
 
 data class ListUiState(val items: List<TodoTask> = listOf())
 
-class FormViewModel(private val repository: TodoTaskRepository, private val dateProvider: CurrentDateProvider) : ViewModel() {
+class FormViewModel(
+    private val repository: TodoTaskRepository,
+    private val dateProvider: CurrentDateProvider,
+    private val notificationHandler: NotificationHandler
+) : ViewModel() {
 
     var todoTaskUiState by mutableStateOf(TodoTaskUiState())
         private set
@@ -128,6 +210,8 @@ class FormViewModel(private val repository: TodoTaskRepository, private val date
     suspend fun save() {
         if (validate()) {
             repository.insertItem(todoTaskUiState.todoTask.toTodoTask())
+            val allTasks = repository.getAllAsStream().first()
+            notificationHandler.scheduleTaskAlarm(allTasks)
         }
     }
 
@@ -186,7 +270,8 @@ object AppViewModelProvider {
         initializer {
             FormViewModel(
                 repository = todoApplication().container.todoTaskRepository,
-                dateProvider = todoApplication().container.currentDateProvider
+                dateProvider = todoApplication().container.currentDateProvider,
+                notificationHandler = todoApplication().container.notificationHandler
             )
         }
     }
@@ -198,8 +283,51 @@ fun CreationExtras.todoApplication(): TodoApplication {
 }
 
 class Lab06Activity : ComponentActivity() {
+
+    companion object {
+        lateinit var container: AppContainer
+    }
+
+    private fun createNotificationChannel() {
+        val name = "Lab06 channel"
+        val descriptionText = "Lab06 is channel for notifications for approaching tasks."
+        val importance = NotificationManager.IMPORTANCE_DEFAULT
+        val channel = NotificationChannel(channelID, name, importance).apply {
+            description = descriptionText
+        }
+        val notificationManager: NotificationManager =
+            getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+        notificationManager.createNotificationChannel(channel)
+    }
+
+    fun scheduleAlarm(time: Long) {
+        val intent = Intent(applicationContext, NotificationBroadcastReceiver::class.java)
+        intent.putExtra(titleExtra, "Deadline")
+        intent.putExtra(messageExtra, "Zbliża się termin zakończenia zadania")
+
+        val pendingIntent = PendingIntent.getBroadcast(
+            applicationContext,
+            notificationID,
+            intent,
+            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
+        )
+
+        val alarmManager = getSystemService(ALARM_SERVICE) as AlarmManager
+
+        alarmManager.setExactAndAllowWhileIdle(
+            AlarmManager.RTC_WAKEUP,
+            time,
+            pendingIntent
+        )
+    }
+
+    @RequiresApi(Build.VERSION_CODES.TIRAMISU)
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
+        createNotificationChannel()
+        container = (this.application as TodoApplication).container
+
         setContent {
             Lab06Theme {
                 Surface(
@@ -213,11 +341,20 @@ class Lab06Activity : ComponentActivity() {
     }
 }
 
+@RequiresApi(Build.VERSION_CODES.TIRAMISU)
+@OptIn(ExperimentalPermissionsApi::class)
 @Composable
-fun MainScreen() {
+fun MainScreen(context: TodoApplication? = null) {
     val navController = rememberNavController()
+    val postNotificationPermission =
+        rememberPermissionState(permission = Manifest.permission.POST_NOTIFICATIONS)
+    LaunchedEffect(key1 = true) {
+        if (!postNotificationPermission.status.isGranted) {
+            postNotificationPermission.launchPermissionRequest()
+        }
+    }
     NavHost(navController = navController, startDestination = "list") {
-        composable("list") { ListScreen(navController = navController) }
+        composable(route = "list") { ListScreen(navController = navController) }
         composable("form") { FormScreen(navController = navController) }
     }
 }
@@ -259,10 +396,17 @@ fun AppTopBar(
                     )
                 }
             } else {
-                IconButton(onClick = { /*TODO*/ }) {
+                IconButton(onClick = {
+                    Lab06Activity.container.notificationHandler.showSimpleNotification()
+                }) {
                     Icon(imageVector = Icons.Default.Settings, contentDescription = "")
                 }
-                IconButton(onClick = { /*TODO*/ }) {
+                val context = androidx.compose.ui.platform.LocalContext.current
+                IconButton(onClick = {
+                    val intent = Intent(context, pl.wsei.pam.MainActivity::class.java)
+                    intent.flags = Intent.FLAG_ACTIVITY_CLEAR_TOP
+                    context.startActivity(intent)
+                }) {
                     Icon(imageVector = Icons.Default.Home, contentDescription = "")
                 }
             }
@@ -478,6 +622,7 @@ fun FormScreen(
     }
 }
 
+@RequiresApi(Build.VERSION_CODES.TIRAMISU)
 @Preview(showBackground = true)
 @Composable
 fun MainScreenPreview() {
